@@ -1,0 +1,132 @@
+{% macro camera_panel() %}
+<section class="camera"><h2>Camera</h2>
+<p id="camera-status" role="status">Camera is off. Start it to capture a sample.</p>
+<img id="camera-feed" alt="Live camera preview with person and approximate head boxes" width="480" height="360" hidden>
+<form method="post" action="/camera/start" class="inline">{{ csrf() }}<input type="hidden" name="next" value="{{ request.path }}"><button>Start camera</button></form>
+<form method="post" action="/camera/stop" class="inline">{{ csrf() }}<input type="hidden" name="next" value="{{ request.path }}"><button>Stop camera</button></form>
+<p class="muted">Experimental matching. Check the student’s name before lending.</p></section>
+{% endmacro %}
+{% macro csrf() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>School library</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; color: #222; background: #fff; font: 16px/1.5 Arial, sans-serif; }
+header, main, footer { max-width: 1050px; margin: auto; padding: 20px; }
+header { border-bottom: 1px solid #ccc; }
+nav { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 10px; }
+a { color: #175b89; }
+h1 { font-size: 27px; margin-top: 4px; } h2 { font-size: 21px; }
+.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+label { display: block; margin-top: 12px; }
+input:not([type=checkbox]), select { display: block; padding: 9px; font: inherit; border: 1px solid #888; border-radius: 3px; width: 100%; max-width: 460px; margin: 5px 0 12px; }
+button { font: inherit; cursor: pointer; padding: 7px 12px; margin: 4px 4px 4px 0; background: #f2f2f2; border: 1px solid #888; border-radius: 3px; }
+button:hover { background: #e4e4e4; } :focus-visible { outline: 3px solid #267dad; outline-offset: 2px; }
+.inline { display: inline; } .check { max-width: 460px; margin: 15px 0; }
+.notice { border-left: 3px solid #48728c; padding: 10px 14px; background: #f0f4f6; }
+.muted, footer { color: #555; font-size: 14px; }
+.camera img { max-width: 100%; height: auto; border: 1px solid #ccc; }
+.table-wrap { overflow-x: auto; } table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+th, td { border-bottom: 1px solid #ddd; text-align: left; padding: 10px; } th { background: #f5f5f5; }
+footer { margin-top: 25px; border-top: 1px solid #ddd; }
+@media (max-width: 700px) { .columns { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body><header><strong>School library</strong><nav aria-label="Main navigation">
+<a href="/">Checkout</a><a href="/return">Return</a><a href="/register">Register</a><a href="/admin">Admin</a><a href="/loans">History</a><a href="/scan-add">Scan / add</a>
+</nav></header><main>
+{% for message in get_flashed_messages() %}<p class="notice" role="status">{{ message }}</p>{% endfor %}
+{% if page == 'checkout' %}
+<h1>Checkout</h1><div class="columns"><div>
+{{ camera_panel() }}
+<form method="post" action="/identify">{{ csrf() }}<input type="hidden" name="isbn" value="{{ isbn }}"><button>Use current student match</button></form>
+{% if selected %}<p class="notice">Selected: <strong>{{ selected.name }}</strong> ({{ selected.school_id }})<br>MAE: {{ '%.4f'|format(selected.score) }} · Valid for two minutes</p>{% endif %}
+</div><section><h2>Book</h2><form method="post" action="/scan-isbn">{{ csrf() }}<input type="hidden" name="next" value="/"><button>Scan book barcode</button></form><form method="get" action="/">
+<label for="isbn">ISBN</label><input id="isbn" name="isbn" value="{{ isbn }}" required maxlength="30" placeholder="e.g. 9780140328721"><button>Find book</button></form>
+{% if book %}<h3>{{ book.title }}</h3><p>{{ book.author }}</p><p>{{ 'Available' if book.available else 'Already on loan' }}</p>
+{% if selected and book.available %}<form method="post" action="/checkout">{{ csrf() }}<input type="hidden" name="student_id" value="{{ selected.id }}"><input type="hidden" name="isbn" value="{{ book.isbn }}">
+<label class="check"><input type="checkbox" name="confirmed" value="yes" required> I confirm this is {{ selected.name }} ({{ selected.school_id }}).</label><button>Confirm checkout</button></form>
+{% elif not selected %}<p>Use a student match to continue.</p>{% endif %}{% endif %}
+</section></div>
+
+{% elif page == 'return' %}
+<h1>Return a book</h1>{{ camera_panel() }}<form method="post" action="/scan-isbn">{{ csrf() }}<input type="hidden" name="next" value="/return"><button>Scan book barcode</button></form><form method="post">{{ csrf() }}<label for="isbn">ISBN</label><input id="isbn" name="isbn" value="{{ isbn }}" required maxlength="30"><button>Record return</button></form>
+<h2>Books on loan</h2><div class="table-wrap"><table><thead><tr><th>Student</th><th>Book</th><th>ISBN</th><th>Borrowed (UTC)</th></tr></thead><tbody>
+{% for loan in loans %}<tr><td>{{ loan.student_name }}</td><td>{{ loan.book_title }}</td><td>{{ loan.isbn }}</td><td>{{ loan.checkout_at }}</td></tr>{% else %}<tr><td colspan="4">No books are on loan.</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif page == 'register' %}
+<h1>{{ 'Edit student' if student else 'Register student' }}</h1><div class="columns"><div>{{ camera_panel() }}</div>
+<form method="post">{{ csrf() }}
+<label for="school_id">School ID</label><input id="school_id" name="school_id" value="{{ student.school_id if student else '' }}" required maxlength="40">
+<label for="name">Student name</label><input id="name" name="name" value="{{ student.name if student else '' }}" required maxlength="150">
+{% if student %}<label class="check"><input type="checkbox" name="recapture" value="yes"> Replace the saved camera sample</label>{% else %}<p>Stand alone in front of the camera, then save. Only the histogram is stored.</p>{% endif %}
+<button>{{ 'Save changes' if student else 'Capture sample and save' }}</button></form></div>
+
+{% elif page == 'admin' %}
+<h1>Admin</h1><h2>{{ 'Edit book' if editing else 'Add book' }}</h2>
+<form method="post" action="{{ '/book/' ~ editing.id if editing else '/book' }}">{{ csrf() }}
+<label for="isbn">ISBN</label><input id="isbn" name="isbn" required maxlength="30" value="{{ editing.isbn if editing else '' }}">
+<label for="barcode">Barcode (if different from ISBN)</label><input id="barcode" name="barcode" value="{{ (editing.barcode or '') if editing else '' }}" maxlength="30"><label for="title">Title</label><input id="title" name="title" required maxlength="250" value="{{ editing.title if editing else '' }}">
+<label for="author">Author</label><input id="author" name="author" maxlength="200" value="{{ editing.author if editing else '' }}"><button>Save book</button>{% if editing %} <a href="/admin">Cancel</a>{% endif %}</form>
+<h2>Students</h2><p><a href="/register">Register a student</a></p><div class="table-wrap"><table><thead><tr><th>School ID</th><th>Name</th><th>Actions</th></tr></thead><tbody>
+{% for student in students %}<tr><td>{{ student.school_id }}</td><td>{{ student.name }}</td><td><a href="/student/{{ student.id }}">Edit</a>
+<form class="inline delete-form" method="post" action="/student/{{ student.id }}/delete">{{ csrf() }}<button>Delete</button></form></td></tr>{% else %}<tr><td colspan="3">No students registered.</td></tr>{% endfor %}</tbody></table></div>
+<h2>Books</h2><div class="table-wrap"><table><thead><tr><th>ISBN</th><th>Title</th><th>Author</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+{% for book in books %}<tr><td>{{ book.isbn }}</td><td>{{ book.title }}</td><td>{{ book.author }}</td><td>{{ 'Available' if book.available else 'On loan' }}</td><td><a href="/book/{{ book.id }}">Edit</a>
+<form class="inline delete-form" method="post" action="/book/{{ book.id }}/delete">{{ csrf() }}<button>Delete</button></form></td></tr>{% else %}<tr><td colspan="5">No books added.</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif page == 'loans' %}
+<h1>Loan history</h1><form method="get">
+<label for="q">Search student name or book title</label><input id="q" name="q" value="{{ query }}">
+<label for="event">Event</label><select id="event" name="event">{% for value in ['all', 'Checkout', 'Return'] %}<option value="{{ value }}" {{ 'selected' if event == value else '' }}>{{ value|capitalize }}</option>{% endfor %}</select><button>Search</button></form>
+<p class="muted">Times are UTC. Names and titles show their values at checkout.</p><div class="table-wrap"><table><thead><tr><th>Time</th><th>Event</th><th>Student</th><th>Book</th><th>ISBN</th></tr></thead><tbody>
+{% for row in events %}<tr><td>{{ row.time }}</td><td>{{ row.event }}</td><td>{{ row.student_name }}</td><td>{{ row.book_title }}</td><td>{{ row.isbn }}</td></tr>{% else %}<tr><td colspan="5">No matching events.</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif page == 'scan_add' %}
+<h1>Scan / add book</h1><p>Type an ISBN or use the optional barcode reader, then check the details before saving. For a UPC barcode, also enter the printed ISBN. Saving an existing ISBN links the barcode to that book.</p><div class="columns"><div>{{ camera_panel() }}</div>
+<form method="post">{{ csrf() }}<label for="isbn">ISBN</label><input id="isbn" name="isbn" value="{{ book.isbn }}" maxlength="30">
+<button name="action" value="scan">Read camera barcode</button><button name="action" value="lookup">Look up details</button>
+<label for="barcode">Barcode (if different from ISBN)</label><input id="barcode" name="barcode" value="{{ book.barcode }}" maxlength="30"><label for="title">Title</label><input id="title" name="title" value="{{ book.title }}" maxlength="250">
+<label for="author">Author</label><input id="author" name="author" value="{{ book.author }}" maxlength="200"><button name="action" value="save">Save book</button></form></div>
+
+{% elif page == 'error' %}
+<h1>Unable to save</h1><p role="alert" class="notice">{{ message }}</p><p>Go back to correct the entry, or choose a page above.</p><button id="go-back">Go back</button>
+{% endif %}
+</main><footer>Local library prototype · One copy per ISBN</footer><script>
+const statusText = document.getElementById('camera-status');
+const feed = document.getElementById('camera-feed');
+
+async function updateCamera() {
+  try {
+    const response = await fetch('/api/detect');
+    if (!response.ok) throw new Error('Camera status unavailable');
+    const data = await response.json();
+    statusText.textContent = data.name
+      ? `Possible match: ${data.name} (${data.school_id}), MAE ${data.score}. Check before use.`
+      : data.message;
+    // Connect to the video stream only once frames are available.
+    if (data.has_frame && !feed.getAttribute('src')) {
+      feed.src = '/video_feed';
+      feed.hidden = false;
+    } else if (!data.has_frame && feed.getAttribute('src')) {
+      feed.removeAttribute('src');
+      feed.hidden = true;
+    }
+  } catch (error) {
+    statusText.textContent = 'Connection lost. Check that the app is running.';
+  }
+  setTimeout(updateCamera, 1000);
+}
+if (statusText) updateCamera();
+
+for (const form of document.querySelectorAll('.delete-form')) {
+  form.addEventListener('submit', event => {
+    if (!confirm('Delete this record? Historical loans will be kept.')) event.preventDefault();
+  });
+}
+document.getElementById('go-back')?.addEventListener('click', () => history.back());
+</script>
+</body></html>

@@ -1,6 +1,0 @@
-{% extends 'base.html' %}{% block content %}<h1>{{ 'Edit student' if student else 'Register student' }}</h1><div class="columns"><div>{% include 'camera.html' %}</div>
-<form method="post">{{ csrf() }}
-<label for="school_id">School ID</label><input id="school_id" name="school_id" value="{{ student.school_id if student else '' }}" required maxlength="40">
-<label for="name">Student name</label><input id="name" name="name" value="{{ student.name if student else '' }}" required maxlength="150">
-{% if student %}<label class="check"><input type="checkbox" name="recapture" value="yes"> Replace the saved camera sample</label>{% else %}<p>Stand alone in front of the camera, then save. Only the histogram is stored.</p>{% endif %}
-<button>{{ 'Save changes' if student else 'Capture sample and save' }}</button></form></div>{% endblock %}

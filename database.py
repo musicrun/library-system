@@ -2,7 +2,10 @@
 import math
 import sqlite3
 from contextlib import contextmanager
-from pathlib import Path
+import json
+from urllib.error import URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 
 @contextmanager
@@ -19,7 +22,34 @@ def connect(path):
 
 def init_db(path):
     with connect(path) as db:
-        db.executescript(Path(__file__).with_name('schema.sql').read_text())
+        db.executescript("""
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS students (
+    id INTEGER PRIMARY KEY,
+    school_id TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    histogram TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS books (
+    id INTEGER PRIMARY KEY,
+    isbn TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    author TEXT NOT NULL DEFAULT '',
+    barcode TEXT
+);
+CREATE TABLE IF NOT EXISTS loans (
+    id INTEGER PRIMARY KEY,
+    student_id INTEGER REFERENCES students(id) ON DELETE SET NULL,
+    book_id INTEGER REFERENCES books(id) ON DELETE SET NULL,
+    student_name TEXT NOT NULL,
+    book_title TEXT NOT NULL,
+    isbn TEXT NOT NULL,
+    checkout_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
+    returned_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_loan
+ON loans(book_id) WHERE returned_at IS NULL;
+""")
         if 'barcode' not in [row['name'] for row in db.execute('PRAGMA table_info(books)')]:
             db.execute('ALTER TABLE books ADD COLUMN barcode TEXT')
         db.execute('CREATE UNIQUE INDEX IF NOT EXISTS unique_book_barcode ON books(barcode)')
@@ -244,3 +274,20 @@ def loan_log(path, query='', event='all'):
         ) WHERE (instr(lower(student_name), lower(?)) > 0 OR instr(lower(book_title), lower(?)) > 0)
         AND (? = 'all' OR event = ?) ORDER BY time DESC, loan_id DESC, event DESC''',
         (query, query, event, event))
+
+
+def lookup_book(isbn):
+    isbn = clean_isbn(isbn)
+    key = 'ISBN:' + isbn
+    url = 'https://openlibrary.org/api/books?' + urlencode({'bibkeys': key, 'format': 'json', 'jscmd': 'data'})
+    request = Request(url, headers={'User-Agent': 'SchoolLibraryPrototype/1.0'})
+    try:
+        with urlopen(request, timeout=5) as response:
+            result = json.loads(response.read(1_000_000))
+        book = result.get(key)
+        if not isinstance(book, dict) or not book.get('title'):
+            raise ValueError('Book not found online. Enter its details manually.')
+        return {'isbn': isbn, 'title': book['title'],
+                'author': ', '.join(author['name'] for author in book.get('authors', []))}
+    except (URLError, TimeoutError, OSError, json.JSONDecodeError, KeyError, TypeError, AttributeError):
+        raise ValueError('Online lookup unavailable. Enter the book details manually.') from None

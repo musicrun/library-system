@@ -1,6 +1,5 @@
 .venv/
 __pycache__/
-*.pyc
 *.db
 *.db-*
 *.pt
@@ -8,3 +7,5 @@ __pycache__/
 .DS_Store
 *.zip
 .env
+local-support/
+start.command

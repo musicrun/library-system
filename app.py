@@ -6,15 +6,14 @@ import time
 from pathlib import Path
 from flask import Flask, Response, abort, flash, jsonify, redirect, render_template, request, session, url_for
 import database as db
-import barcode_scanner
-from vision import Camera, find_match
+from vision import Camera, find_match, scan_barcode
 
 BASE = Path(__file__).resolve().parent
 (BASE / '.yolo').mkdir(exist_ok=True)
 os.environ.setdefault('YOLO_CONFIG_DIR', str(BASE / '.yolo'))
 
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=str(BASE), static_folder=None)
 app.secret_key = secrets.token_hex(32)
 app.config.update(SESSION_COOKIE_SAMESITE='Strict', MAX_CONTENT_LENGTH=64 * 1024)
 path = BASE / 'library.db'
@@ -38,11 +37,11 @@ def no_cache(response):
 
 @app.errorhandler(ValueError)
 def invalid_input(error):
-    return render_template('error.html', message=str(error)), 400
+    return render_template('page.html', page='error', message=str(error)), 400
 
 @app.errorhandler(400)
 def bad_request(error):
-    return render_template('error.html', message=error.description), 400
+    return render_template('page.html', page='error', message=error.description), 400
 
 def selected_student():
     selected = session.get('selected')
@@ -64,7 +63,7 @@ def read_camera_barcode():
     frame = camera.snapshot()[0]
     if frame is None:
         raise ValueError('Start the camera first, then hold the barcode in view.')
-    isbn = barcode_scanner.scan_barcode(frame)
+    isbn = scan_barcode(frame)
     import cv2
     ok, encoded = cv2.imencode('.jpg', frame)
     if ok:
@@ -95,7 +94,7 @@ def home():
                 flash('Book not found. Add it in Admin first.')
         except ValueError as error:
             flash(str(error))
-    return render_template('checkout.html', selected=selected_student(), book=book, isbn=isbn)
+    return render_template('page.html', page='checkout', selected=selected_student(), book=book, isbn=isbn)
 
 @app.post('/identify')
 def identify():
@@ -126,7 +125,7 @@ def returns():
         db.return_book(path, request.form.get('isbn', ''))
         flash('Return saved.')
         return redirect(url_for('returns'))
-    return render_template('return.html', loans=db.active_loans(path), isbn=request.args.get('isbn', ''))
+    return render_template('page.html', page='return', loans=db.active_loans(path), isbn=request.args.get('isbn', ''))
 
 @app.route('/register', methods=['GET', 'POST'])
 @app.route('/student/<int:student_id>', methods=['GET', 'POST'])
@@ -144,11 +143,11 @@ def register(student_id=None):
         db.save_student(path, student_id, request.form.get('school_id', ''), request.form.get('name', ''), histogram)
         flash('Student saved.')
         return redirect(url_for('admin'))
-    return render_template('register.html', student=student)
+    return render_template('page.html', page='register', student=student)
 
 @app.get('/admin')
 def admin():
-    return render_template('admin.html', students=db.students(path), books=db.books(path), editing=None)
+    return render_template('page.html', page='admin', students=db.students(path), books=db.books(path), editing=None)
 
 @app.route('/book', methods=['POST'])
 @app.route('/book/<int:book_id>', methods=['GET', 'POST'])
@@ -160,7 +159,7 @@ def book_edit(book_id=None):
         db.save_book(path, book_id, request.form.get('isbn', ''), request.form.get('title', ''), request.form.get('author', ''), request.form.get('barcode', ''))
         flash('Book saved.')
         return redirect(url_for('admin'))
-    return render_template('admin.html', students=db.students(path), books=db.books(path), editing=book)
+    return render_template('page.html', page='admin', students=db.students(path), books=db.books(path), editing=book)
 
 @app.post('/student/<int:student_id>/delete')
 def student_delete(student_id):
@@ -178,7 +177,7 @@ def book_delete(book_id):
 def loans():
     query = request.args.get('q', '')
     event = request.args.get('event', 'all')
-    return render_template('loans.html', events=db.loan_log(path, query, event), query=query, event=event)
+    return render_template('page.html', page='loans', events=db.loan_log(path, query, event), query=query, event=event)
 
 @app.route('/scan-add', methods=['GET', 'POST'])
 def scan_add():
@@ -193,7 +192,7 @@ def scan_add():
                 except ValueError:
                     flash('Barcode read. Enter the printed ISBN to link this barcode to the book.')
             elif action == 'lookup':
-                book.update(barcode_scanner.lookup_book(book['isbn']))
+                book.update(db.lookup_book(book['isbn']))
             elif action == 'save':
                 isbn = db.clean_isbn(book['isbn'])
                 existing = db.get_book_by_isbn(path, isbn)
@@ -207,7 +206,7 @@ def scan_add():
                 raise ValueError('Choose scan, lookup, or save.')
         except ValueError as error:
             flash(str(error))
-    return render_template('scan_add.html', book=book)
+    return render_template('page.html', page='scan_add', book=book)
 
 @app.post('/camera/<action>')
 def camera_action(action):

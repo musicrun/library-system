@@ -2,6 +2,7 @@
 import threading
 import time
 from pathlib import Path
+from database import clean_barcode
 
 THRESHOLD = 0.30
 
@@ -93,8 +94,6 @@ class Camera:
             import cv2
             from ultralytics import YOLO
             weights = Path(__file__).with_name('yolov8n.pt')
-            if not weights.exists():
-                raise RuntimeError('Model missing. Run python download_model.py first.')
             model = YOLO(str(weights))
             capture = cv2.VideoCapture(self.index)
             if not capture.isOpened():
@@ -149,3 +148,23 @@ class Camera:
         finally:
             if capture is not None:
                 capture.release()
+
+
+def scan_barcode(frame):
+    import cv2
+    import zxingcpp
+    formats = zxingcpp.BarcodeFormat.EAN13 | zxingcpp.BarcodeFormat.EAN8 | zxingcpp.BarcodeFormat.UPCA
+    results = zxingcpp.read_barcodes(frame, formats=formats)
+    for result in results:
+        code = clean_barcode(result.text)
+        position = result.position
+        points = [position.top_left, position.top_right, position.bottom_left, position.bottom_right]
+        left = min(point.x for point in points)
+        right = max(point.x for point in points)
+        top = min(point.y for point in points)
+        bottom = max(point.y for point in points)
+        cv2.rectangle(frame, (left, top), (right, bottom), (255, 0, 0), 2)
+        return code
+    raise ValueError('No book barcode detected. Hold it closer, keep it sharp, and try again.')
+
+

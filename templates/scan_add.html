@@ -1,5 +1,0 @@
-{% extends 'base.html' %}{% block content %}<h1>Scan / add book</h1><p>Type an ISBN or use the optional barcode reader, then check the details before saving. For a UPC barcode, also enter the printed ISBN. Saving an existing ISBN links the barcode to that book.</p><div class="columns"><div>{% include 'camera.html' %}</div>
-<form method="post">{{ csrf() }}<label for="isbn">ISBN</label><input id="isbn" name="isbn" value="{{ book.isbn }}" maxlength="30">
-<button name="action" value="scan">Read camera barcode</button><button name="action" value="lookup">Look up details</button>
-<label for="barcode">Barcode (if different from ISBN)</label><input id="barcode" name="barcode" value="{{ book.barcode }}" maxlength="30"><label for="title">Title</label><input id="title" name="title" value="{{ book.title }}" maxlength="250">
-<label for="author">Author</label><input id="author" name="author" value="{{ book.author }}" maxlength="200"><button name="action" value="save">Save book</button></form></div>{% endblock %}
