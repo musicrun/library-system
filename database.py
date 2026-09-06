@@ -37,11 +37,21 @@ def required(value, label, maximum=150):
     return value
 
 
+def isbn_total(digits):
+    total = 0
+    for i in range(len(digits)):
+        weight = 1
+        if i % 2 == 1:
+            weight = 3
+        total += int(digits[i]) * weight
+    return total
+
+
 def clean_isbn(value):
     isbn = value.replace('-', '').replace(' ', '').upper()
     valid = False
     if len(isbn) == 13 and isbn.isascii() and isbn.isdigit():
-        total = sum(int(n) * (1 if i % 2 == 0 else 3) for i, n in enumerate(isbn))
+        total = isbn_total(isbn)
         valid = isbn.startswith(('978', '979')) and total % 10 == 0
     elif len(isbn) == 10 and isbn[:9].isascii() and isbn[:9].isdigit():
         if isbn[-1] == 'X':
@@ -50,10 +60,13 @@ def clean_isbn(value):
             last = int(isbn[-1])
         else:
             last = -1
-        valid = last >= 0 and (sum(int(n) * (10-i) for i, n in enumerate(isbn[:9])) + last) % 11 == 0
+        total = last
+        for i in range(9):
+            total += int(isbn[i]) * (10 - i)
+        valid = last >= 0 and total % 11 == 0
         if valid:
             first = '978' + isbn[:9]
-            total = sum(int(n) * (1 if i % 2 == 0 else 3) for i, n in enumerate(first))
+            total = isbn_total(first)
             isbn = first + str((-total) % 10)
     if not valid:
         raise ValueError('Enter a valid ISBN-10 or ISBN-13, including its check digit.')
@@ -66,7 +79,14 @@ def clean_barcode(value):
         code = '0' + code  # UPC-A and its EAN-13 representation use the same key.
     if len(code) not in (8, 13) or not code.isascii() or not code.isdigit():
         raise ValueError('Enter an EAN-8, UPC-A or EAN-13 barcode.')
-    total = sum(int(n) * (1 if i % 2 == 0 else 3) for i, n in enumerate(reversed(code)))
+    total = 0
+    weight = 1
+    for digit in reversed(code):
+        total += int(digit) * weight
+        if weight == 1:
+            weight = 3
+        else:
+            weight = 1
     if total % 10:
         raise ValueError('Barcode check digit is invalid.')
     return code
@@ -93,6 +113,23 @@ def books(path):
     return rows(path, '''SELECT books.*, NOT EXISTS (
         SELECT 1 FROM loans WHERE book_id = books.id AND returned_at IS NULL
         ) AS available FROM books ORDER BY title''')
+
+
+def get_student(path, student_id):
+    with connect(path) as db:
+        return db.execute('SELECT * FROM students WHERE id=?', (student_id,)).fetchone()
+
+
+def get_book(path, book_id):
+    with connect(path) as db:
+        return db.execute('SELECT * FROM books WHERE id=?', (book_id,)).fetchone()
+
+
+def get_book_by_isbn(path, isbn):
+    for book in books(path):
+        if book['isbn'] == isbn:
+            return book
+    return None
 
 
 def save_student(path, student_id, school_id, name, histogram):

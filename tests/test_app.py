@@ -16,11 +16,18 @@ class FakeCamera:
 
 class AppTests(unittest.TestCase):
     def setUp(self):
-        from app import create_app
+        import app
         self.folder = tempfile.TemporaryDirectory()
         self.path = Path(self.folder.name) / 'library.db'
         self.camera = FakeCamera()
-        self.app = create_app(self.path, self.camera)
+        self.path_patch = patch.object(app, 'path', self.path)
+        self.camera_patch = patch.object(app, 'camera', self.camera)
+        self.path_patch.start()
+        self.camera_patch.start()
+        self.addCleanup(self.path_patch.stop)
+        self.addCleanup(self.camera_patch.stop)
+        app.db.init_db(self.path)
+        self.app = app.app
         self.app.config['TESTING'] = True
         self.client = self.app.test_client()
         self.client.get('/')

@@ -20,8 +20,11 @@ def find_match(histogram, students, threshold=THRESHOLD):
     best_student = None
     best_score = float('inf')
     for student in students:
-        stored = [float(value) for value in student['histogram'].split(',')]
-        score = sum(abs(a - b) for a, b in zip(histogram, stored)) / 32
+        stored = student['histogram'].split(',')
+        total = 0
+        for i in range(32):
+            total += abs(histogram[i] - float(stored[i]))
+        score = total / 32
         if score < best_score:
             best_score = score
             best_student = student
@@ -108,7 +111,17 @@ class Camera:
                 message = 'No person detected. Stand in front of the camera.'
                 preview = frame.copy()
                 if boxes:
-                    x1, y1, x2, y2 = [int(n) for n in max(boxes, key=lambda b: (b[2]-b[0])*(b[3]-b[1]))]
+                    largest = boxes[0]
+                    largest_area = 0
+                    for box in boxes:
+                        area = (box[2] - box[0]) * (box[3] - box[1])
+                        if area > largest_area:
+                            largest = box
+                            largest_area = area
+                    x1 = int(largest[0])
+                    y1 = int(largest[1])
+                    x2 = int(largest[2])
+                    y2 = int(largest[3])
                     height, width = frame.shape[:2]
                     x1, x2 = max(0, x1), min(width, x2)
                     y1, y2 = max(0, y1), min(height, y2)
