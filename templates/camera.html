@@ -1,0 +1,6 @@
+<section class="camera"><h2>Camera</h2>
+<p id="camera-status" role="status">Camera is off. Start it to capture a sample.</p>
+<img id="camera-feed" alt="Live camera preview with person and approximate head boxes" width="480" height="360" hidden>
+<form method="post" action="/camera/start" class="inline">{{ csrf() }}<input type="hidden" name="next" value="{{ request.path }}"><button>Start camera</button></form>
+<form method="post" action="/camera/stop" class="inline">{{ csrf() }}<input type="hidden" name="next" value="{{ request.path }}"><button>Stop camera</button></form>
+<p class="muted">Experimental matching. Check the student’s name before lending.</p></section>

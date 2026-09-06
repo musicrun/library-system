@@ -1,0 +1,12 @@
+{% extends 'base.html' %}{% block title %}Checkout · School library{% endblock %}
+{% block content %}<h1>Checkout</h1><div class="columns"><div>
+{% include 'camera.html' %}
+<form method="post" action="/identify">{{ csrf() }}<input type="hidden" name="isbn" value="{{ isbn }}"><button>Use current student match</button></form>
+{% if selected %}<p class="notice">Selected: <strong>{{ selected.name }}</strong> ({{ selected.school_id }})<br>MAE: {{ '%.4f'|format(selected.score) }} · Valid for two minutes</p>{% endif %}
+</div><section><h2>Book</h2><form method="post" action="/scan-isbn">{{ csrf() }}<input type="hidden" name="next" value="/"><button>Scan book barcode</button></form><form method="get" action="/">
+<label for="isbn">ISBN</label><input id="isbn" name="isbn" value="{{ isbn }}" required maxlength="30" placeholder="e.g. 9780140328721"><button>Find book</button></form>
+{% if book %}<h3>{{ book.title }}</h3><p>{{ book.author }}</p><p>{{ 'Available' if book.available else 'Already on loan' }}</p>
+{% if selected and book.available %}<form method="post" action="/checkout">{{ csrf() }}<input type="hidden" name="student_id" value="{{ selected.id }}"><input type="hidden" name="isbn" value="{{ book.isbn }}">
+<label class="check"><input type="checkbox" name="confirmed" value="yes" required> I confirm this is {{ selected.name }} ({{ selected.school_id }}).</label><button>Confirm checkout</button></form>
+{% elif not selected %}<p>Use a student match to continue.</p>{% endif %}{% endif %}
+</section></div>{% endblock %}

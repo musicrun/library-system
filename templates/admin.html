@@ -1,0 +1,11 @@
+{% extends 'base.html' %}{% block content %}<h1>Admin</h1><h2>{{ 'Edit book' if editing else 'Add book' }}</h2>
+<form method="post" action="{{ '/book/' ~ editing.id if editing else '/book' }}">{{ csrf() }}
+<label for="isbn">ISBN</label><input id="isbn" name="isbn" required maxlength="30" value="{{ editing.isbn if editing else '' }}">
+<label for="barcode">Barcode (if different from ISBN)</label><input id="barcode" name="barcode" value="{{ (editing.barcode or '') if editing else '' }}" maxlength="30"><label for="title">Title</label><input id="title" name="title" required maxlength="250" value="{{ editing.title if editing else '' }}">
+<label for="author">Author</label><input id="author" name="author" maxlength="200" value="{{ editing.author if editing else '' }}"><button>Save book</button>{% if editing %} <a href="/admin">Cancel</a>{% endif %}</form>
+<h2>Students</h2><p><a href="/register">Register a student</a></p><div class="table-wrap"><table><thead><tr><th>School ID</th><th>Name</th><th>Actions</th></tr></thead><tbody>
+{% for student in students %}<tr><td>{{ student.school_id }}</td><td>{{ student.name }}</td><td><a href="/student/{{ student.id }}">Edit</a>
+<form class="inline delete-form" method="post" action="/student/{{ student.id }}/delete">{{ csrf() }}<button>Delete</button></form></td></tr>{% else %}<tr><td colspan="3">No students registered.</td></tr>{% endfor %}</tbody></table></div>
+<h2>Books</h2><div class="table-wrap"><table><thead><tr><th>ISBN</th><th>Title</th><th>Author</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+{% for book in books %}<tr><td>{{ book.isbn }}</td><td>{{ book.title }}</td><td>{{ book.author }}</td><td>{{ 'Available' if book.available else 'On loan' }}</td><td><a href="/book/{{ book.id }}">Edit</a>
+<form class="inline delete-form" method="post" action="/book/{{ book.id }}/delete">{{ csrf() }}<button>Delete</button></form></td></tr>{% else %}<tr><td colspan="5">No books added.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
