@@ -1,4 +1,3 @@
-"""Experimental histogram matching, not secure facial recognition."""
 import threading
 import time
 from pathlib import Path
