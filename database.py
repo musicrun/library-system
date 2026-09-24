@@ -1,4 +1,3 @@
-"""SQLite storage and validation. Each book record represents one copy."""
 import math
 import sqlite3
 from contextlib import contextmanager
